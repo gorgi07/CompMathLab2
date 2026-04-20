@@ -8,10 +8,11 @@ from typing import Callable
 sys.path.append(os.path.join(os.path.dirname(__file__), "methods"))
 
 from dto.equation import Equation
+from dto.system_equation import SystemEquation
 from methods.chord_method import ChordMethod
 from methods.simple_iterations_method import SimpleIterationsMethod
 from methods.newton_method import NewtonMethod
-
+from methods.system_simple_iterations_method import SystemSimpleIterationsMethod
 
 ROOT_SCAN_STEPS = 1000
 ZERO_EPS = 1e-7
@@ -133,6 +134,59 @@ def print_methods(methods):
 
     for number, method_data in methods.items():
         print(f"{number}: {method_data['name']}")
+
+
+def print_systems(systems):
+    print("\nВыберите систему нелинейных уравнений:")
+
+    for number, system in systems.items():
+        print(f"{number}:")
+        print(system.text)
+
+
+def read_system_initial_approximations():
+    print("\nВведите начальные приближения")
+
+    x1 = read_float("x1(0): ")
+    x2 = read_float("x2(0): ")
+
+    epsilon = read_positive_float("Погрешность вычисления: ")
+    decimal_places = read_int("Количество знаков после запятой для вывода: ", 0, 15)
+
+    return x1, x2, epsilon, decimal_places
+
+
+def solve_system_task(systems):
+    print_systems(systems)
+
+    system_number = read_int("Введите номер системы: ", 1, len(systems))
+    system = systems[system_number]
+
+    x1, x2, epsilon, decimal_places = read_system_initial_approximations()
+
+    method = SystemSimpleIterationsMethod(system, x1, x2, epsilon, decimal_places)
+
+    print("\nПроверка достаточного условия сходимости...")
+
+    method_check, method_message = method.check()
+    print(method_message)
+
+    if not method_check:
+        return
+
+    print("\nГрафик функций системы будет построен в области проверки.")
+    system.draw()
+
+    print("\nИтерационный процесс:")
+    result = method.solve()
+
+    print()
+    print(result)
+
+    if abs(result.residual_f1) <= epsilon and abs(result.residual_f2) <= epsilon:
+        print("\nРешение системы проверено: невязки не превышают заданную погрешность.")
+    else:
+        print("\nРешение требует проверки: невязки больше заданной погрешности.")
 
 
 def parse_input_file(file_path: str):
@@ -367,6 +421,54 @@ def main():
         ),
     }
 
+    systems = {
+        1: SystemEquation(
+            lambda x1, x2: 0.1 * x1 ** 2 + x1 + 0.2 * x2 ** 2 - 0.3,
+            lambda x1, x2: 0.2 * x1 ** 2 + x2 + 0.1 * x1 * x2 - 0.7,
+            lambda x1, x2: 0.3 - 0.1 * x1 ** 2 - 0.2 * x2 ** 2,
+            lambda x1, x2: 0.7 - 0.2 * x1 ** 2 - 0.1 * x1 * x2,
+            "f1(x1, x2) = 0.1*x1^2 + x1 + 0.2*x2^2 - 0.3 = 0\n"
+            "f2(x1, x2) = 0.2*x1^2 + x2 + 0.1*x1*x2 - 0.7 = 0\n"
+            "Эквивалентный вид:\n"
+            "x1 = 0.3 - 0.1*x1^2 - 0.2*x2^2\n"
+            "x2 = 0.7 - 0.2*x1^2 - 0.1*x1*x2",
+            0,
+            1,
+            0,
+            1
+        ),
+        2: SystemEquation(
+            lambda x1, x2: math.sin(x1 + x2) - 1.2 * x1 - 0.2,
+            lambda x1, x2: x1 ** 2 + 2 * x2 ** 2 - 1,
+            lambda x1, x2: (math.sin(x1 + x2) - 0.2) / 1.2,
+            lambda x1, x2: math.sqrt((1 - x1 ** 2) / 2),  # lambda x1, x2: -math.sqrt((1 - x1 ** 2) / 2)
+            "f1(x1, x2) = sin(x1 + x2) - 1.2*x1 - 0.2 = 0\n"
+            "f2(x1, x2) = x1^2 + 2*x2^2 - 1 = 0\n"
+            "Эквивалентный вид:\n"
+            "x1 = (sin(x1 + x2) - 0.2) / 1.2\n"
+            "x2 = sqrt((1 - x1^2) / 2)",
+            0.5,  # -1
+            0.7,  # -0.8
+            0.45,  # -0.35
+            0.7  # -0.15
+        ),
+        3: SystemEquation(
+            lambda x1, x2: x1 + 0.1 * x2 ** 2 - 0.5,
+            lambda x1, x2: x2 + 0.1 * x1 ** 2 - 0.5,
+            lambda x1, x2: 0.5 - 0.1 * x2 ** 2,
+            lambda x1, x2: 0.5 - 0.1 * x1 ** 2,
+            "f1(x1, x2) = x1 + 0.1*x2^2 - 0.5 = 0\n"
+            "f2(x1, x2) = x2 + 0.1*x1^2 - 0.5 = 0\n"
+            "Эквивалентный вид:\n"
+            "x1 = 0.5 - 0.1*x2^2\n"
+            "x2 = 0.5 - 0.1*x1^2",
+            0,
+            1,
+            0,
+            1
+        ),
+    }
+
     methods = {
         1: {
             "name": "Метод хорд",
@@ -387,7 +489,17 @@ def main():
 
     while True:
         try:
-            solve_task(equations, methods)
+            print("\nВыберите режим работы:")
+            print("1: Решить нелинейное уравнение")
+            print("2: Решить систему нелинейных уравнений")
+
+            mode = read_int("Введите номер режима: ", 1, 2)
+
+            if mode == 1:
+                solve_task(equations, methods)
+            else:
+                solve_system_task(systems)
+
         except ExitCommand:
             print("Программа завершена.")
             print("З.Ы. Приходите ещё :)")
